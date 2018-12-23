@@ -2,27 +2,41 @@ import cv2
 import numpy as np
 import glob
 import click
-from math import ceil, sqrt
+import os
 from helper import Helper
+from math import ceil, sqrt
 
 
-@click.command()
-@click.option('--path', required=True, help="Input directory of tileset images.")
-@click.option('--output', required=True, help="Path and filename of the tileset.")
-@click.option('--tile-size', required=True, type=click.INT, help="Size of each tile.")
+def validate_path(ctx, param, value):
+    if os.path.isdir(value):
+        return value
+    else:
+        raise click.BadParameter('Invalid path')
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+@click.option('--path', required=True, type=click.Path(), callback=validate_path,
+              help="Input directory of tileset images.")
+@click.option('--output', required=True, type=click.Path(), help="Path and filename of the tileset.")
+@click.option('--tile-size', required=True, type=click.INT, help="Size in pixels of each tile.")
 @click.option('--tile-padding', default=0, type=click.INT, help="Space in pixels between each tile.")
-@click.option('--scale', default=1, type=click.INT,
-              help='Scale factor for each tile. With a scale factor of 2, 16x16 tiles will be 32x32 in the tileset.')
-def create_tileset(path, output, tile_size, tile_padding, scale):
+@click.option('--scale', default=1, type=click.FLOAT, help='Scale factor for each tile.')
+def tileset_from_images(path, output, tile_size, tile_padding, scale):
     """
     Creates a single tileset PNG from a directory of individual tiles.
     """
-    tile_size = tile_size * scale
+
+    tile_size = ceil(tile_size * scale)
 
     tiles = []
 
     for img in glob.iglob(path + "\\*.png"):
-        read_image = cv2.imread(img)
+        read_image = cv2.imread(img, cv2.IMREAD_UNCHANGED)
         read_image = Helper.scale_image(image=read_image, scale=scale)
 
         tiles.append(read_image)
@@ -52,5 +66,28 @@ def create_tileset(path, output, tile_size, tile_padding, scale):
     cv2.imwrite(output, tileset)
 
 
+@cli.command()
+@click.option('--path', required=True, type=click.Path(), callback=validate_path,
+              help="Input directory of images to resize.")
+@click.option('--output', required=True, type=click.Path(), callback=validate_path,
+              help="Output directory for re-sized images.")
+@click.option('--scale', default=1, type=click.FLOAT, help='Scale factor for each image.')
+def resize_images(path, output, scale):
+    """
+    Re-sizes each image in a given directory by a given scale.
+    """
+
+    for img in glob.iglob(path + "\\*.png"):
+
+        file_name = os.path.split(img)[-1]
+        write_path = os.path.join(output, file_name)
+
+        read_image = cv2.imread(img, cv2.IMREAD_UNCHANGED)
+
+        resized_image = Helper.scale_image(read_image, scale)
+
+        cv2.imwrite(write_path, resized_image)
+
+
 if __name__ == '__main__':
-    create_tileset()
+    cli()
